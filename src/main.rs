@@ -43,8 +43,10 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
 
-            .service(http::controllers::quotes::sqlite)
-            .service(http::controllers::quotes::hello)
+            .service(http::controllers::quotes::list)
+            .service(http::controllers::quotes::item)
+            .service(http::controllers::quotes::delete)
+
             .service(echo)
             .service(user)
             .route("/hey", web::get().to(manual_hello))

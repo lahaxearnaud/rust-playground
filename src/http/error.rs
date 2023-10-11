@@ -12,6 +12,9 @@ pub enum MyError {
     #[display(fmt = "bad request")]
     BadClientData,
 
+    #[display(fmt = "not found")]
+    NotFount,
+
     #[display(fmt = "timeout")]
     Timeout,
 }
@@ -28,6 +31,7 @@ impl error::ResponseError for MyError {
             MyError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             MyError::BadClientData => StatusCode::BAD_REQUEST,
             MyError::Timeout => StatusCode::GATEWAY_TIMEOUT,
+            MyError::NotFount => StatusCode::NOT_FOUND,
         }
     }
 }

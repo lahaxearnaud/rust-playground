@@ -3,10 +3,12 @@ use crate::http_client;
 use crate::http;
 use crate::db::repositories::quote::QuoteRepository;
 
+use actix_web::web::Path;
 use actix_web::HttpResponse;
 use actix_web::Responder;
 use actix_web::{
-    get, Result,
+    get, delete,
+    Result,
 };
 use serde::{Deserialize, Serialize};
 use rand::seq::SliceRandom;
@@ -27,10 +29,38 @@ struct QuotesResponse {
     limit: u32
 }
 
-#[get("/sqlite")]
-pub async fn sqlite() -> impl Responder {
+#[get("/quotes")]
+pub async fn list() -> impl Responder {
     let quote_repository = QuoteRepository;
-    HttpResponse::Ok().json(quote_repository.get_quotes())
+    let response_promise = quote_repository.get_quotes(None);
+
+    if response_promise.is_err() {
+        return Err(http::error::MyError::NotFount)
+    }
+
+    Ok(HttpResponse::Ok()
+            .json(response_promise.unwrap()))
+}
+
+#[get("/quotes/{quote_id}")]
+pub async fn item(path: Path<String>) -> Result<HttpResponse, http::error::MyError> {
+    let quote_id = path.into_inner();
+    let quote_repository = QuoteRepository;
+    let response_promise = quote_repository.get_quote(quote_id);
+
+    if response_promise.is_err() {
+        return Err(http::error::MyError::NotFount)
+    }
+
+    Ok(HttpResponse::Ok()
+            .json(response_promise.unwrap()))
+}
+
+#[delete("/quotes/{quote_id}")]
+pub async fn delete(path: Path<String>) -> impl Responder {
+    let quote_id = path.into_inner();
+    let quote_repository = QuoteRepository;
+    HttpResponse::Ok().json(quote_repository.remove(quote_id))
 }
 
 #[get("/")]
