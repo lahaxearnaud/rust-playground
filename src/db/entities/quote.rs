@@ -1,18 +1,20 @@
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
+use validator::Validate;
 
 use crate::db::schema::quotes;
 
-#[derive(Serialize, Queryable)]
+#[derive(Serialize, Deserialize, Queryable, Debug, Insertable, Clone, AsChangeset)]
+#[table_name = "quotes"]
 pub struct Quote {
     pub id: String,
     pub author: String,
     pub quote: String,
 }
 
-#[derive(Insertable)]
-#[table_name = "quotes"]
-pub struct NewQuote<'a> {
-    pub id: &'a str,
-    pub author: &'a str,
-    pub quote: &'a str,
+#[derive(Debug, Validate, Deserialize)]
+pub struct ApiPayloadQuote {
+    #[validate(length(min = 10))]
+    pub author: String,
+    #[validate(length(min = 5))]
+    pub quote: String,
 }

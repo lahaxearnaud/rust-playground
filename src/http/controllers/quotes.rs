@@ -1,38 +1,24 @@
-
-use crate::http_client;
 use crate::http;
 use crate::db::repositories::quote::QuoteRepository;
+use crate::db::entities::quote::{Quote, ApiPayloadQuote};
+use actix_web::http::header::ContentType;
+use reqwest::StatusCode;
+use validator::Validate;
 
-use actix_web::web::Path;
+use actix_web::web::{Path, Json};
 use actix_web::HttpResponse;
 use actix_web::Responder;
 use actix_web::{
-    get, delete,
+    get, delete, post, put,
     Result,
 };
-use serde::{Deserialize, Serialize};
-use rand::seq::SliceRandom;
+use uuid::Uuid;
 
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Quote {
-    id: u32,
-    quote: String,
-    author: String
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct QuotesResponse {
-    quotes: Vec<Quote>,
-    total: u32,
-    skip: u32,
-    limit: u32
-}
 
 #[get("/quotes")]
 pub async fn list() -> impl Responder {
     let quote_repository = QuoteRepository;
-    let response_promise = quote_repository.get_quotes(None);
+    let response_promise = quote_repository.get_quotes(Some(1000));
 
     if response_promise.is_err() {
         return Err(http::error::MyError::NotFount)
@@ -60,51 +46,68 @@ pub async fn item(path: Path<String>) -> Result<HttpResponse, http::error::MyErr
 pub async fn delete(path: Path<String>) -> impl Responder {
     let quote_id = path.into_inner();
     let quote_repository = QuoteRepository;
-    HttpResponse::Ok().json(quote_repository.remove(quote_id))
+    let _ = quote_repository.remove(quote_id);
+
+    HttpResponse::Ok()
 }
 
-#[get("/")]
-pub async fn hello() -> Result<String, http::error::MyError> {
-    let client_promise = http_client::client::build_client();
+#[post("/quotes")]
+pub async fn add(quote_form: Json<ApiPayloadQuote>) -> Result<HttpResponse, http::error::MyError> {
+    let quote_repository = QuoteRepository;
 
-    if client_promise.is_err() {
-        log::warn!("Fail to create http client: {}", client_promise.unwrap_err().to_string());
+    let validation = quote_form.validate();
+
+    if validation.is_err() {
+        return Ok(HttpResponse::build(StatusCode::NOT_ACCEPTABLE)
+            .insert_header(ContentType::json())
+            .json(validation.err()));
+    }
+
+    let new_quote = Quote {
+        id: Uuid::new_v4().to_string(),
+        author: quote_form.author.to_string(),
+        quote: quote_form.quote.to_string()
+    };
+
+    let response_promise = quote_repository
+        .insert(new_quote.clone());
+
+    if response_promise.is_err() {
         return Err(http::error::MyError::BadClientData)
     }
 
-    // Perform the actual execution of the network request
-    let res = client_promise
-        .ok().unwrap()
-        .get("https://dummyjson.com/quotes")
-        .send()
-        .await;
+    Ok(HttpResponse::Ok().json(new_quote))
+}
 
-    if res.is_err() {
-        let unwrapped_error = res.unwrap_err();
-        if unwrapped_error.is_timeout() {
-            log::warn!("Timeout on call api: {}", unwrapped_error.to_string());
-            return Err(http::error::MyError::Timeout)
-        }
+#[put("/quotes/{quote_id}")]
+pub async fn update(quote_form: Json<ApiPayloadQuote>, path: Path<String>) -> Result<HttpResponse, http::error::MyError> {
+    let quote_id = path.into_inner();
 
-        log::warn!("Fail to call api: {}", unwrapped_error.to_string());
-        return Err(http::error::MyError::InternalError)
+    let validation = quote_form.validate();
+
+    if validation.is_err() {
+        return Ok(HttpResponse::build(StatusCode::NOT_ACCEPTABLE)
+            .insert_header(ContentType::json())
+            .json(validation.err()));
     }
 
-    let quotes = res.ok().unwrap().json:: <QuotesResponse>().await;
+    let quote_repository = QuoteRepository;
+    let response_promise = quote_repository.get_quote(quote_id);
 
-    if quotes.is_err() {
-        log::warn!("Fail to json decode: {}", quotes.unwrap_err().to_string());
-        return Err(http::error::MyError::InternalError)
+    if response_promise.is_err() {
+        return Err(http::error::MyError::NotFount)
     }
 
-    Ok(
-        quotes
-        .ok()
-        .unwrap()
-        .quotes
-        .choose(&mut rand::thread_rng())
-        .unwrap()
-        .quote
-        .to_string()
-    )
+    let mut db_quote = response_promise.unwrap();
+
+    db_quote.quote = quote_form.quote.to_string();
+    db_quote.author = quote_form.author.to_string();
+
+    let update_promise = quote_repository.update(db_quote.clone());
+
+    if update_promise.is_err() {
+        return Err(http::error::MyError::NotFount)
+    }
+
+    Ok(HttpResponse::Ok().json(db_quote))
 }

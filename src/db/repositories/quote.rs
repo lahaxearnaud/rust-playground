@@ -22,14 +22,26 @@ impl QuoteRepository {
             .first(&mut connection)
     }
 
-    pub fn remove(&self, other_id: String) {
+    pub fn remove(&self, other_id: String) -> QueryResult<usize> {
         let mut connection = establish_connection();
 
-        diesel::delete(
+        return diesel::delete(
             quotes
             .find(other_id)
-        )
-        .execute(&mut connection)
-        .expect("Error deleting posts");
+        ).execute(&mut connection);
+    }
+
+    pub fn insert(&self, quote_new: Quote) -> QueryResult<usize> {
+        let mut connection = establish_connection();
+        return diesel::insert_into(quotes)
+            .values(&quote_new)
+            .execute(&mut connection);
+    }
+
+    pub fn update(&self, quote_new: Quote) -> QueryResult<usize> {
+        let mut connection = establish_connection();
+        return diesel::update(quotes)
+            .set(&quote_new)
+            .execute(&mut connection);
     }
 }

@@ -46,6 +46,8 @@ async fn main() -> std::io::Result<()> {
             .service(http::controllers::quotes::list)
             .service(http::controllers::quotes::item)
             .service(http::controllers::quotes::delete)
+            .service(http::controllers::quotes::add)
+            .service(http::controllers::quotes::update)
 
             .service(echo)
             .service(user)

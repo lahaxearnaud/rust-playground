@@ -3,6 +3,7 @@ use actix_web::{
     http::{header::ContentType, StatusCode},
 };
 use derive_more::{Display, Error};
+use validator::ValidationError;
 
 #[derive(Debug, Display, Error)]
 pub enum MyError {
