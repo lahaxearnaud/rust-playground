@@ -3,21 +3,17 @@ use actix_web::{
     http::{header::ContentType, StatusCode},
 };
 use derive_more::{Display, Error};
-use validator::ValidationError;
 
 #[derive(Debug, Display, Error)]
 pub enum MyError {
-    #[display(fmt = "internal error")]
-    InternalError,
-
-    #[display(fmt = "bad request")]
+    #[display(fmt = "Bad request")]
     BadClientData,
 
-    #[display(fmt = "not found")]
+    #[display(fmt = "Not found")]
     NotFount,
 
-    #[display(fmt = "timeout")]
-    Timeout,
+    #[display(fmt = "Unauthorized")]
+    Unauthorized,
 }
 
 impl error::ResponseError for MyError {
@@ -29,10 +25,9 @@ impl error::ResponseError for MyError {
 
     fn status_code(&self) -> StatusCode {
         match *self {
-            MyError::InternalError => StatusCode::INTERNAL_SERVER_ERROR,
             MyError::BadClientData => StatusCode::BAD_REQUEST,
-            MyError::Timeout => StatusCode::GATEWAY_TIMEOUT,
             MyError::NotFount => StatusCode::NOT_FOUND,
+            MyError::Unauthorized => StatusCode::UNAUTHORIZED,
         }
     }
 }

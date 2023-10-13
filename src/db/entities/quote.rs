@@ -4,7 +4,7 @@ use validator::Validate;
 use crate::db::schema::quotes;
 
 #[derive(Serialize, Deserialize, Queryable, Debug, Insertable, Clone, AsChangeset)]
-#[table_name = "quotes"]
+#[diesel(table_name = quotes)]
 pub struct Quote {
     pub id: String,
     pub author: String,

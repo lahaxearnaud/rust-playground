@@ -9,29 +9,26 @@ extern crate dotenv;
 mod db;
 
 use actix_web::{
-    get, post, web, App, HttpResponse, HttpServer, Responder, Result,
-    middleware::Logger
+    App, HttpServer, Result,
+    dev::ServiceRequest,
+    Error,
+    middleware::{Logger, DefaultHeaders}, http::header::ContentType
 };
-use serde::Deserialize;
+use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
+use http::error::MyError;
 
-#[derive(Deserialize)]
-struct Info {
-    user_id: u32,
-}
 
-#[post("/echo")]
-async fn echo(req_body: String) -> impl Responder {
-    HttpResponse::Ok().body(req_body)
-}
+async fn validator(
+    req: ServiceRequest,
+    _credentials: BearerAuth,
+) -> Result<ServiceRequest, (Error, ServiceRequest)> {
+    let token = _credentials.token();
 
-#[get("/users/{user_id}")]
-async fn user(info: web::Path<Info>) -> Result<String> {
+    if !token.eq("foo") {
+        return Err((Error::from(MyError::Unauthorized), req));
+    }
 
-    Ok(format!("Welcome user_id {}!", info.user_id))
-}
-
-async fn manual_hello() -> impl Responder {
-    HttpResponse::Ok().body("Hey there!")
+    Ok(req)
 }
 
 #[actix_web::main]
@@ -39,19 +36,25 @@ async fn main() -> std::io::Result<()> {
     simple_logger::init_with_env().unwrap();
 
     HttpServer::new(|| {
+        let auth = HttpAuthentication::bearer(validator);
+
         App::new()
+            // auth
+            .wrap(auth)
+
+            // api format
+            .wrap(DefaultHeaders::new().add(ContentType::json()))
+
+            // logs
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
 
+            // routes
             .service(http::controllers::quotes::list)
             .service(http::controllers::quotes::item)
             .service(http::controllers::quotes::delete)
             .service(http::controllers::quotes::add)
             .service(http::controllers::quotes::update)
-
-            .service(echo)
-            .service(user)
-            .route("/hey", web::get().to(manual_hello))
     })
     .bind(("127.0.0.1", 8080))?
     .run()
