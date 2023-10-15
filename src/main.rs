@@ -8,6 +8,13 @@ extern crate dotenv;
 
 mod db;
 
+use dotenv::dotenv;
+use std::{env, collections::BTreeMap};
+
+use hmac::{Hmac, Mac};
+use jwt::{VerifyWithKey, SignWithKey};
+use sha2::Sha256;
+
 use actix_web::{
     App, HttpServer, Result,
     dev::ServiceRequest,
@@ -24,16 +31,43 @@ async fn validator(
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
     let token = _credentials.token();
 
-    if !token.eq("foo") {
+    let key: Hmac<Sha256> = Hmac::new_from_slice(
+        env::var("JWT_SECRET").unwrap_or("JWT_SECRET".to_string()).as_ref()
+    ).unwrap();
+
+    let verify_promise: Result<BTreeMap<String, String>, jwt::Error> = token.verify_with_key(&key);
+
+    if verify_promise.is_err() {
         return Err((Error::from(MyError::Unauthorized), req));
     }
 
     Ok(req)
 }
 
+
+fn create_jwt() -> String {
+    let key: Hmac<Sha256> = Hmac::new_from_slice(
+        env::var("JWT_SECRET").unwrap_or("JWT_SECRET".to_string()).as_ref()
+    ).unwrap();
+    let mut claims = BTreeMap::new();
+    claims.insert("audiance", "127.0.0.1");
+
+    return claims.sign_with_key(&key).unwrap();
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     simple_logger::init_with_env().unwrap();
+
+    dotenv().ok();
+    let env_jwt_secret = env::var("JWT_SECRET");
+    match env_jwt_secret {
+        Ok(_) => (),
+        Err(_) => log::error!("JWT_SECRET env var must be defined"),
+    }
+
+    log::info!("JWT: {}", create_jwt());
+
 
     HttpServer::new(|| {
         let auth = HttpAuthentication::bearer(validator);
