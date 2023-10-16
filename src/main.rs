@@ -63,7 +63,7 @@ async fn main() -> std::io::Result<()> {
     let env_jwt_secret = env::var("JWT_SECRET");
     match env_jwt_secret {
         Ok(_) => (),
-        Err(_) => log::error!("JWT_SECRET env var must be defined"),
+        Err(_) => panic!("JWT_SECRET env var must be defined"),
     }
 
     log::info!("JWT: {}", create_jwt());
