@@ -1,8 +1,8 @@
 use crate::http;
 use crate::db::repositories::quote::QuoteRepository;
 use crate::db::entities::quote::{Quote, ApiPayloadQuote};
+use actix_web::http::StatusCode;
 use actix_web::http::header::ContentType;
-use reqwest::StatusCode;
 use validator::Validate;
 
 use actix_web::web::{Path, Json};

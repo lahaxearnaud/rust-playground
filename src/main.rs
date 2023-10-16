@@ -1,4 +1,3 @@
-mod http_client;
 mod http;
 
 #[macro_use]
