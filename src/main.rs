@@ -129,7 +129,12 @@ async fn test_index_with_jwt() {
         .insert_header(("Authorization", format!("Bearer {}" ,create_jwt())))
         .to_request();
     let resp = test::call_service(&app, req).await;
-    assert!(resp.status().is_success());
+    let success = resp.status().is_success();
+
+    let body = test::read_body(resp).await;
+    println!("Out: {:?}", std::str::from_utf8(&body));
+
+    assert!(success);
 }
 
 #[actix_web::test]
@@ -140,17 +145,33 @@ async fn test_index_get() {
         .insert_header(ContentType::json())
         .to_request();
     let resp = test::call_service(&app, req).await;
-    assert!(resp.status().is_success());
+    let success = resp.status().is_success();
+
+    let body = test::read_body(resp).await;
+    println!("Out: {:?}", std::str::from_utf8(&body));
+
+    assert!(success);
 }
 
 #[actix_web::test]
 async fn test_index_post() {
     dotenv().ok();
-    let app = test::init_service(App::new().service(http::controllers::quotes::add)).await;
+    simple_logger::init_with_env().unwrap();
+
+    let app = test::init_service(
+        App::new()
+        .wrap(Logger::default())
+        .service(http::controllers::quotes::add)
+    ).await;
     let req = test::TestRequest::post().uri("/quotes")
         .insert_header(ContentType::json())
-        .set_json(ApiPayloadQuote{quote: "Foo bar".to_string(), author: "Tintin le beau".to_string()})
+        .set_json(ApiPayloadQuote{quote: "Il ne pas respirer la compote".to_string(), author: "Tintin le beau".to_string()})
         .to_request();
     let resp = test::call_service(&app, req).await;
-    assert!(resp.status().is_success());
+    let success = resp.status().is_success();
+
+    let body = test::read_body(resp).await;
+    println!("Out: {:?}", std::str::from_utf8(&body));
+
+    assert!(success);
 }

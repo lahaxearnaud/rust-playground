@@ -3,6 +3,7 @@ use crate::db::repositories::quote::QuoteRepository;
 use crate::db::entities::quote::{Quote, ApiPayloadQuote};
 use actix_web::http::StatusCode;
 use actix_web::http::header::ContentType;
+use log::warn;
 use validator::Validate;
 
 use actix_web::web::{Path, Json};
@@ -21,6 +22,8 @@ pub async fn list() -> impl Responder {
     let response_promise = quote_repository.get_quotes(Some(1000));
 
     if response_promise.is_err() {
+        warn!("{:?}", response_promise.unwrap_err());
+
         return Err(http::error::MyError::NotFount)
     }
 
@@ -35,6 +38,8 @@ pub async fn item(path: Path<String>) -> Result<HttpResponse, http::error::MyErr
     let response_promise = quote_repository.get_quote(quote_id);
 
     if response_promise.is_err() {
+        warn!("{:?}", response_promise.unwrap_err());
+
         return Err(http::error::MyError::NotFount)
     }
 
@@ -73,6 +78,7 @@ pub async fn add(quote_form: Json<ApiPayloadQuote>) -> Result<HttpResponse, http
         .insert(new_quote.clone());
 
     if response_promise.is_err() {
+        warn!("{:?}", response_promise.unwrap_err());
         return Err(http::error::MyError::BadClientData)
     }
 
@@ -95,6 +101,8 @@ pub async fn update(quote_form: Json<ApiPayloadQuote>, path: Path<String>) -> Re
     let response_promise = quote_repository.get_quote(quote_id);
 
     if response_promise.is_err() {
+        warn!("{:?}", response_promise.unwrap_err());
+
         return Err(http::error::MyError::NotFount)
     }
 
@@ -106,6 +114,8 @@ pub async fn update(quote_form: Json<ApiPayloadQuote>, path: Path<String>) -> Re
     let update_promise = quote_repository.update(db_quote.clone());
 
     if update_promise.is_err() {
+        warn!("{:?}", update_promise.unwrap_err());
+
         return Err(http::error::MyError::NotFount)
     }
 

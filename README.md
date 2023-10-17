@@ -3,13 +3,23 @@
 ## Deps
 
 ```bash
-sudo apt-get install libsqlite3-dev
+sudo apt-get install libpq-dev
 ```
 
 ```bash
-cargo install diesel_cli --no-default-features --features sqlite
+cargo install diesel_cli --no-default-features --features postgres
 ```
 
+# Dev postgres
+
 ```bash
+docker run -d --rm --name postgres \
+ -e POSTGRES_PASSWORD=postgres \
+ -e POSTGRES_USER=postgres \
+ -e POSTGRES_DB=postgres \
+ -p 5432:5432 postgres:16
+ ```
+
+ ```bash
 diesel setup
 ```
