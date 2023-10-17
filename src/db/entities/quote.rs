@@ -11,7 +11,7 @@ pub struct Quote {
     pub quote: String,
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, Serialize)]
 pub struct ApiPayloadQuote {
     #[validate(length(min = 10))]
     pub author: String,

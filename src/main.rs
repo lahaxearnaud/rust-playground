@@ -7,6 +7,7 @@ extern crate dotenv;
 
 mod db;
 
+use db::entities::quote::ApiPayloadQuote;
 use dotenv::dotenv;
 use std::{env, collections::BTreeMap};
 
@@ -15,10 +16,11 @@ use jwt::{VerifyWithKey, SignWithKey};
 use sha2::Sha256;
 
 use actix_web::{
+    test,
     App, HttpServer, Result,
     dev::ServiceRequest,
     Error,
-    middleware::{Logger, DefaultHeaders}, http::header::ContentType
+    middleware::{Logger, DefaultHeaders}, http::{header::ContentType, StatusCode}
 };
 use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
 use http::error::MyError;
@@ -53,6 +55,7 @@ fn create_jwt() -> String {
 
     return claims.sign_with_key(&key).unwrap();
 }
+
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -92,4 +95,62 @@ async fn main() -> std::io::Result<()> {
     .bind(("127.0.0.1", 8080))?
     .run()
     .await
+}
+
+
+#[actix_web::test]
+async fn test_index_without_jwt() {
+    dotenv().ok();
+    let auth = HttpAuthentication::bearer(validator);
+    let app = test::init_service(
+        App::new()
+            .wrap(auth)
+            .service(http::controllers::quotes::list)
+    ).await;
+    let req = test::TestRequest::get().uri("/quotes")
+        .insert_header(ContentType::json())
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status() == StatusCode::UNAUTHORIZED);
+}
+
+#[actix_web::test]
+async fn test_index_with_jwt() {
+    dotenv().ok();
+    let auth = HttpAuthentication::bearer(validator);
+
+    let app = test::init_service(
+        App::new()
+            .wrap(auth)
+            .service(http::controllers::quotes::list)
+    ).await;
+    let req = test::TestRequest::get().uri("/quotes")
+        .insert_header(ContentType::json())
+        .insert_header(("Authorization", format!("Bearer {}" ,create_jwt())))
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+}
+
+#[actix_web::test]
+async fn test_index_get() {
+    dotenv().ok();
+    let app = test::init_service(App::new().service(http::controllers::quotes::list)).await;
+    let req = test::TestRequest::get().uri("/quotes")
+        .insert_header(ContentType::json())
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+}
+
+#[actix_web::test]
+async fn test_index_post() {
+    dotenv().ok();
+    let app = test::init_service(App::new().service(http::controllers::quotes::add)).await;
+    let req = test::TestRequest::post().uri("/quotes")
+        .insert_header(ContentType::json())
+        .set_json(ApiPayloadQuote{quote: "Foo bar".to_string(), author: "Tintin le beau".to_string()})
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
 }

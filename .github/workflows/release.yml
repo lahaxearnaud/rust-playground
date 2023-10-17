@@ -31,6 +31,10 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.toml') }}
       - name: Install rust toolchain
         uses: dtolnay/rust-toolchain@stable
+      - name: Cargo install diesel_cli
+        run: cargo install diesel_cli --no-default-features --features sqlite
+      - name: Setup sqlite DB
+        run: diesel setup
       - run: cargo test --all-features
       - run: cargo build -r --all-features
       - uses: actions/upload-artifact@v3
