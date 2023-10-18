@@ -16,6 +16,15 @@ use actix_web::{
 use uuid::Uuid;
 
 
+#[utoipa::path(
+    path = "/api/quotes",
+    responses(
+        (status = 200, description = "List current quote items", body = [Quote])
+    ),
+    security(
+        ("token" = [])
+    )
+)]
 #[get("/quotes")]
 pub async fn list() -> impl Responder {
     let quote_repository = QuoteRepository;
@@ -31,6 +40,16 @@ pub async fn list() -> impl Responder {
             .json(response_promise.unwrap()))
 }
 
+#[utoipa::path(
+    path = "/api/quotes/{quote_id}",
+    responses(
+        (status = 200, description = "Quote created successfully", body = Quote),
+        (status = 404, description = "Quote not found")
+    ),
+    security(
+        ("token" = [])
+    )
+)]
 #[get("/quotes/{quote_id}")]
 pub async fn item(path: Path<String>) -> Result<HttpResponse, http::error::MyError> {
     let quote_id = path.into_inner();
@@ -47,6 +66,15 @@ pub async fn item(path: Path<String>) -> Result<HttpResponse, http::error::MyErr
             .json(response_promise.unwrap()))
 }
 
+#[utoipa::path(
+    path = "/api/quotes/{quote_id}",
+    responses(
+        (status = 200, description = "Quote deleted"),
+    ),
+    security(
+        ("token" = [])
+    )
+)]
 #[delete("/quotes/{quote_id}")]
 pub async fn delete(path: Path<String>) -> impl Responder {
     let quote_id = path.into_inner();
@@ -56,6 +84,17 @@ pub async fn delete(path: Path<String>) -> impl Responder {
     HttpResponse::Ok()
 }
 
+#[utoipa::path(
+    path = "/api/quotes",
+    request_body = ApiPayloadQuote,
+    responses(
+        (status = 201, description = "Quote created successfully", body = Quote),
+        (status = 406, description = "Validation error", body = ValidationErrors)
+    ),
+    security(
+        ("token" = [])
+    )
+)]
 #[post("/quotes")]
 pub async fn add(quote_form: Json<ApiPayloadQuote>) -> Result<HttpResponse, http::error::MyError> {
     let quote_repository = QuoteRepository;
@@ -85,6 +124,18 @@ pub async fn add(quote_form: Json<ApiPayloadQuote>) -> Result<HttpResponse, http
     Ok(HttpResponse::Ok().json(new_quote))
 }
 
+#[utoipa::path(
+    path = "/api/quotes/{quote_id}",
+    request_body = ApiPayloadQuote,
+    responses(
+        (status = 201, description = "Quote created successfully", body = Quote),
+        (status = 406, description = "Validation error", body = ValidationErrors),
+        (status = 404, description = "Quote not found")
+    ),
+    security(
+        ("token" = [])
+    )
+)]
 #[put("/quotes/{quote_id}")]
 pub async fn update(quote_form: Json<ApiPayloadQuote>, path: Path<String>) -> Result<HttpResponse, http::error::MyError> {
     let quote_id = path.into_inner();

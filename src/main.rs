@@ -15,19 +15,32 @@ use jwt::{VerifyWithKey, SignWithKey};
 use sha2::Sha256;
 
 use actix_web::{
-    App, HttpServer, Result,
+    App, HttpServer, Result, web,
     dev::ServiceRequest,
     Error,
-    middleware::{Logger, DefaultHeaders}, http::{header::ContentType, StatusCode}
+    middleware::{Logger, DefaultHeaders}, http::header::ContentType
 };
+
 use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
 use http::error::MyError;
+
+use utoipa::{
+    openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme},
+    Modify, OpenApi,
+};
+use utoipa_swagger_ui::SwaggerUi;
+
+use std::net::Ipv4Addr;
 
 
 async fn validator(
     req: ServiceRequest,
     _credentials: BearerAuth,
 ) -> Result<ServiceRequest, (Error, ServiceRequest)> {
+    if req.path().contains("/swagger-ui") {
+        return Ok(req);
+    }
+
     let token = _credentials.token();
 
     let key: Hmac<Sha256> = Hmac::new_from_slice(
@@ -69,12 +82,51 @@ async fn main() -> std::io::Result<()> {
     log::info!("JWT: {}", create_jwt());
 
 
-    HttpServer::new(|| {
+    struct SecurityAddon;
+
+    impl Modify for SecurityAddon {
+        fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+            let components = openapi.components.as_mut().unwrap();
+            components.add_security_scheme(
+                "token",
+                SecurityScheme::Http(
+                    HttpBuilder::new()
+                        .scheme(HttpAuthScheme::Bearer)
+                        .bearer_format("JWT")
+                        .build(),
+                ),
+            )
+        }
+    }
+
+    #[derive(OpenApi)]
+    #[openapi(
+        modifiers(&SecurityAddon),
+        paths(
+            http::controllers::quotes::list,
+            http::controllers::quotes::item,
+            http::controllers::quotes::add,
+            http::controllers::quotes::update,
+            http::controllers::quotes::delete,
+        ),
+        components(
+            schemas(
+                db::entities::quote::Quote,
+                db::entities::quote::ApiPayloadQuote
+            )
+        )
+    )]
+    struct ApiDoc;
+
+    let openapi = ApiDoc::openapi();
+
+    HttpServer::new(move || {
         let auth = HttpAuthentication::bearer(validator);
+
 
         App::new()
             // auth
-            .wrap(auth)
+
 
             // api format
             .wrap(DefaultHeaders::new().add(ContentType::json()))
@@ -83,14 +135,23 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
 
-            // routes
-            .service(http::controllers::quotes::list)
-            .service(http::controllers::quotes::item)
-            .service(http::controllers::quotes::delete)
-            .service(http::controllers::quotes::add)
-            .service(http::controllers::quotes::update)
+            .service(
+                web::scope("/api")
+                            .wrap(auth)
+                            // routes
+                            .service(http::controllers::quotes::list)
+                            .service(http::controllers::quotes::item)
+                            .service(http::controllers::quotes::delete)
+                            .service(http::controllers::quotes::add)
+                            .service(http::controllers::quotes::update)
+
+            )
+
+            .service(
+                SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", openapi.clone()),
+            )
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind((Ipv4Addr::UNSPECIFIED, 8080))?
     .run()
     .await
 }
@@ -99,6 +160,7 @@ async fn main() -> std::io::Result<()> {
 #[actix_web::test]
 async fn test_index_without_jwt() {
     use actix_web::test;
+    use actix_web::http::StatusCode;
 
     dotenv().ok();
     let auth = HttpAuthentication::bearer(validator);
