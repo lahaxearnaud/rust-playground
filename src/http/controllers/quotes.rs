@@ -11,7 +11,7 @@ use actix_web::HttpResponse;
 use actix_web::Responder;
 use actix_web::{
     get, delete, post, put,
-    Result,
+    Result
 };
 use uuid::Uuid;
 
@@ -120,4 +120,95 @@ pub async fn update(quote_form: Json<ApiPayloadQuote>, path: Path<String>) -> Re
     }
 
     Ok(HttpResponse::Ok().json(db_quote))
+}
+
+#[actix_web::test]
+async fn test_get_list() {
+    use actix_web::test;
+    use dotenv::dotenv;
+    use actix_web::App;
+
+    dotenv().ok();
+    let app = test::init_service(App::new().service(http::controllers::quotes::list)).await;
+    let req = test::TestRequest::get().uri("/quotes")
+        .insert_header(ContentType::json())
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let success = resp.status().is_success();
+
+    let body = test::read_body(resp).await;
+    println!("Out: {:?}", std::str::from_utf8(&body));
+
+    assert!(success);
+}
+
+#[actix_web::test]
+async fn test_get_item() {
+    use actix_web::test;
+    use dotenv::dotenv;
+    use actix_web::App;
+
+    dotenv().ok();
+    let app = test::init_service(App::new().service(http::controllers::quotes::item)).await;
+    let req = test::TestRequest::get().uri("/quotes/072f58a7-4150-431e-3729-60aea434088e")
+        .insert_header(ContentType::json())
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let success = resp.status().is_success();
+
+    let body = test::read_body(resp).await;
+    println!("Out: {:?}", std::str::from_utf8(&body));
+
+    assert!(success);
+}
+
+#[actix_web::test]
+async fn test_post() {
+    use actix_web::test;
+    use dotenv::dotenv;
+    use actix_web::App;
+
+    dotenv().ok();
+
+    let app = test::init_service(
+        App::new()
+        .service(http::controllers::quotes::add)
+    ).await;
+    let req = test::TestRequest::post().uri("/quotes")
+        .insert_header(ContentType::json())
+        .set_json(ApiPayloadQuote{quote: "Il ne pas respirer la compote".to_string(), author: "Tintin le beau".to_string()})
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let success = resp.status().is_success();
+
+    let body = test::read_body(resp).await;
+    println!("Out: {:?}", std::str::from_utf8(&body));
+
+    assert!(success);
+}
+
+
+#[actix_web::test]
+async fn test_put() {
+    use actix_web::test;
+    use dotenv::dotenv;
+    use actix_web::App;
+
+    dotenv().ok();
+
+    let app = test::init_service(
+        App::new()
+        .service(http::controllers::quotes::update)
+    ).await;
+    let req = test::TestRequest::put().uri("/quotes/172f58a7-3729-431e-aa80-9189c808623c")
+        .insert_header(ContentType::json())
+        .set_json(ApiPayloadQuote{quote: "Nouvelle technique : on passe pour des cons, les autres se marrent, et on frappe. C’est nouveau. ".to_string(), author: "Tintin le beau".to_string()})
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    let success = resp.status().is_success();
+
+    let body = test::read_body(resp).await;
+    println!("Out: {:?}", std::str::from_utf8(&body));
+
+    assert!(success);
 }

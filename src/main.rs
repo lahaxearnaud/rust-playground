@@ -7,7 +7,6 @@ extern crate dotenv;
 
 mod db;
 
-use db::entities::quote::ApiPayloadQuote;
 use dotenv::dotenv;
 use std::{env, collections::BTreeMap};
 
@@ -16,7 +15,6 @@ use jwt::{VerifyWithKey, SignWithKey};
 use sha2::Sha256;
 
 use actix_web::{
-    test,
     App, HttpServer, Result,
     dev::ServiceRequest,
     Error,
@@ -100,6 +98,8 @@ async fn main() -> std::io::Result<()> {
 
 #[actix_web::test]
 async fn test_index_without_jwt() {
+    use actix_web::test;
+
     dotenv().ok();
     let auth = HttpAuthentication::bearer(validator);
     let app = test::init_service(
@@ -116,6 +116,8 @@ async fn test_index_without_jwt() {
 
 #[actix_web::test]
 async fn test_index_with_jwt() {
+    use actix_web::test;
+
     dotenv().ok();
     let auth = HttpAuthentication::bearer(validator);
 
@@ -127,45 +129,6 @@ async fn test_index_with_jwt() {
     let req = test::TestRequest::get().uri("/quotes")
         .insert_header(ContentType::json())
         .insert_header(("Authorization", format!("Bearer {}" ,create_jwt())))
-        .to_request();
-    let resp = test::call_service(&app, req).await;
-    let success = resp.status().is_success();
-
-    let body = test::read_body(resp).await;
-    println!("Out: {:?}", std::str::from_utf8(&body));
-
-    assert!(success);
-}
-
-#[actix_web::test]
-async fn test_index_get() {
-    dotenv().ok();
-    let app = test::init_service(App::new().service(http::controllers::quotes::list)).await;
-    let req = test::TestRequest::get().uri("/quotes")
-        .insert_header(ContentType::json())
-        .to_request();
-    let resp = test::call_service(&app, req).await;
-    let success = resp.status().is_success();
-
-    let body = test::read_body(resp).await;
-    println!("Out: {:?}", std::str::from_utf8(&body));
-
-    assert!(success);
-}
-
-#[actix_web::test]
-async fn test_index_post() {
-    dotenv().ok();
-    simple_logger::init_with_env().unwrap();
-
-    let app = test::init_service(
-        App::new()
-        .wrap(Logger::default())
-        .service(http::controllers::quotes::add)
-    ).await;
-    let req = test::TestRequest::post().uri("/quotes")
-        .insert_header(ContentType::json())
-        .set_json(ApiPayloadQuote{quote: "Il ne pas respirer la compote".to_string(), author: "Tintin le beau".to_string()})
         .to_request();
     let resp = test::call_service(&app, req).await;
     let success = resp.status().is_success();
