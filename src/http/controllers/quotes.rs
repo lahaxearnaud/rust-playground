@@ -15,7 +15,6 @@ use actix_web::{
 };
 use uuid::Uuid;
 
-
 #[utoipa::path(
     path = "/api/quotes",
     responses(

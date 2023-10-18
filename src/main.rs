@@ -30,8 +30,6 @@ use utoipa::{
 };
 use utoipa_swagger_ui::SwaggerUi;
 
-use std::net::Ipv4Addr;
-
 
 async fn validator(
     req: ServiceRequest,
@@ -70,9 +68,10 @@ fn create_jwt() -> String {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    dotenv().ok();
+
     simple_logger::init_with_env().unwrap();
 
-    dotenv().ok();
     let env_jwt_secret = env::var("JWT_SECRET");
     match env_jwt_secret {
         Ok(_) => (),
@@ -125,25 +124,23 @@ async fn main() -> std::io::Result<()> {
 
 
         App::new()
-            // auth
-
-
-            // api format
-            .wrap(DefaultHeaders::new().add(ContentType::json()))
-
             // logs
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
 
             .service(
                 web::scope("/api")
-                            .wrap(auth)
-                            // routes
-                            .service(http::controllers::quotes::list)
-                            .service(http::controllers::quotes::item)
-                            .service(http::controllers::quotes::delete)
-                            .service(http::controllers::quotes::add)
-                            .service(http::controllers::quotes::update)
+                        // api format
+                        .wrap(DefaultHeaders::new().add(ContentType::json()))
+
+                        // auth
+                        .wrap(auth)
+                        // routes
+                        .service(http::controllers::quotes::list)
+                        .service(http::controllers::quotes::item)
+                        .service(http::controllers::quotes::delete)
+                        .service(http::controllers::quotes::add)
+                        .service(http::controllers::quotes::update)
 
             )
 
@@ -151,7 +148,43 @@ async fn main() -> std::io::Result<()> {
                 SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", openapi.clone()),
             )
     })
-    .bind((Ipv4Addr::UNSPECIFIED, 8080))?
+    .bind((
+        env::var("HTTP_LISTEN_IP")
+            .unwrap_or(
+                "127.0.0.1".to_string()
+            ),
+        env::var("HTTP_LISTEN_PORT")
+            .unwrap_or(
+                "8080".to_string()
+            )
+            .to_string()
+            .parse::<u16>()
+            .unwrap()
+    ))?
+    .workers(
+        env::var("HTTP_SERVER_NUM_WORKERS")
+                .unwrap_or(
+                    "5".to_string()
+                )
+                .to_string()
+                .parse::<usize>()
+                .unwrap()
+    )
+    .max_connections(
+        env::var("HTTP_SERVER_MAX_CONNEXION")
+                .unwrap_or(
+                    "5".to_string()
+                )
+                .to_string()
+                .parse::<usize>()
+                .unwrap()
+    )
+    .server_hostname(
+        env::var("HTTP_SERVER_HOSTNAME")
+                .unwrap_or(
+                    "127.0.0.1".to_string()
+                )
+    )
     .run()
     .await
 }
