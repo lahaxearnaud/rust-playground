@@ -1,12 +1,11 @@
-use crate::http;
+use crate::http::{self, error};
 use crate::db::repositories::quote::QuoteRepository;
 use crate::db::entities::quote::{Quote, ApiPayloadQuote};
 use actix_web::http::StatusCode;
 use actix_web::http::header::ContentType;
-use log::warn;
 use validator::Validate;
 
-use actix_web::web::{Path, Json};
+use actix_web::web::{Path, Json, self};
 use actix_web::HttpResponse;
 use actix_web::Responder;
 use actix_web::{
@@ -25,18 +24,23 @@ use uuid::Uuid;
     )
 )]
 #[get("/quotes")]
-pub async fn list() -> impl Responder {
+pub async fn list(pool: web::Data<crate::DbPool>) -> actix_web::Result<HttpResponse, http::error::MyError> {
     let quote_repository = QuoteRepository;
-    let response_promise = quote_repository.get_quotes(Some(1000));
 
-    if response_promise.is_err() {
-        warn!("{:?}", response_promise.unwrap_err());
+    let quotes = web::block(move || {
+        let mut conn = pool.get().expect("couldn't get db connection from pool");
 
-        return Err(http::error::MyError::NotFount)
+        return quote_repository.get_quotes(
+            Some(1000),
+            &mut conn
+        );
+    })
+    .await;
+
+    match quotes {
+        Ok(_) => return Ok(HttpResponse::Ok().json(quotes.unwrap().unwrap())),
+        Err(_) => return Err(http::error::MyError::NotFount),
     }
-
-    Ok(HttpResponse::Ok()
-            .json(response_promise.unwrap()))
 }
 
 #[utoipa::path(
@@ -50,19 +54,21 @@ pub async fn list() -> impl Responder {
     )
 )]
 #[get("/quotes/{quote_id}")]
-pub async fn item(path: Path<String>) -> Result<HttpResponse, http::error::MyError> {
+pub async fn item(path: Path<String>, pool: web::Data<crate::DbPool>) -> Result<HttpResponse, http::error::MyError> {
     let quote_id = path.into_inner();
     let quote_repository = QuoteRepository;
-    let response_promise = quote_repository.get_quote(quote_id);
 
-    if response_promise.is_err() {
-        warn!("{:?}", response_promise.unwrap_err());
+    let quote = web::block(move || {
+        let mut conn = pool.get().expect("couldn't get db connection from pool");
 
-        return Err(http::error::MyError::NotFount)
+        return quote_repository.get_quote(quote_id, &mut conn);
+    })
+    .await;
+
+    match quote {
+        Ok(_) => return Ok(HttpResponse::Ok().json(quote.unwrap().unwrap())),
+        Err(_) => return Err(http::error::MyError::NotFount),
     }
-
-    Ok(HttpResponse::Ok()
-            .json(response_promise.unwrap()))
 }
 
 #[utoipa::path(
@@ -75,10 +81,16 @@ pub async fn item(path: Path<String>) -> Result<HttpResponse, http::error::MyErr
     )
 )]
 #[delete("/quotes/{quote_id}")]
-pub async fn delete(path: Path<String>) -> impl Responder {
+pub async fn delete(path: Path<String>, pool: web::Data<crate::DbPool>) -> impl Responder {
     let quote_id = path.into_inner();
     let quote_repository = QuoteRepository;
-    let _ = quote_repository.remove(quote_id);
+
+    let _ = web::block(move || {
+        let mut conn = pool.get().expect("couldn't get db connection from pool");
+
+        return quote_repository.remove(quote_id, &mut conn);
+    })
+    .await;
 
     HttpResponse::Ok()
 }
@@ -88,14 +100,15 @@ pub async fn delete(path: Path<String>) -> impl Responder {
     request_body = ApiPayloadQuote,
     responses(
         (status = 201, description = "Quote created successfully", body = Quote),
-        (status = 406, description = "Validation error", body = ValidationErrors)
+        (status = 406, description = "Validation error", body = ValidationErrors),
+        (status = 503, description = "Server error")
     ),
     security(
         ("token" = [])
     )
 )]
 #[post("/quotes")]
-pub async fn add(quote_form: Json<ApiPayloadQuote>) -> Result<HttpResponse, http::error::MyError> {
+pub async fn add(quote_form: Json<ApiPayloadQuote>, pool: web::Data<crate::DbPool>) -> Result<HttpResponse, http::error::MyError> {
     let quote_repository = QuoteRepository;
 
     let validation = quote_form.validate();
@@ -106,21 +119,26 @@ pub async fn add(quote_form: Json<ApiPayloadQuote>) -> Result<HttpResponse, http
             .json(validation.err()));
     }
 
+    let id = Uuid::new_v4().to_string();
     let new_quote = Quote {
-        id: Uuid::new_v4().to_string(),
+        id: id.clone(),
         author: quote_form.author.to_string(),
         quote: quote_form.quote.to_string()
     };
+    let result_quote = new_quote.clone();
 
-    let response_promise = quote_repository
-        .insert(new_quote.clone());
+    let quote_insert = web::block(move || {
+        let mut conn = pool.get().expect("couldn't get db connection from pool");
 
-    if response_promise.is_err() {
-        warn!("{:?}", response_promise.unwrap_err());
-        return Err(http::error::MyError::BadClientData)
+        return quote_repository
+            .insert(new_quote.clone(), &mut conn);
+    })
+    .await;
+
+    match quote_insert {
+        Ok(_) => return Ok(HttpResponse::Ok().json(result_quote)),
+        Err(_) => return Err(http::error::MyError::ServerUnavailable),
     }
-
-    Ok(HttpResponse::Ok().json(new_quote))
 }
 
 #[utoipa::path(
@@ -129,14 +147,15 @@ pub async fn add(quote_form: Json<ApiPayloadQuote>) -> Result<HttpResponse, http
     responses(
         (status = 201, description = "Quote created successfully", body = Quote),
         (status = 406, description = "Validation error", body = ValidationErrors),
-        (status = 404, description = "Quote not found")
+        (status = 404, description = "Quote not found"),
+        (status = 503, description = "Server error")
     ),
     security(
         ("token" = [])
     )
 )]
 #[put("/quotes/{quote_id}")]
-pub async fn update(quote_form: Json<ApiPayloadQuote>, path: Path<String>) -> Result<HttpResponse, http::error::MyError> {
+pub async fn update(quote_form: Json<ApiPayloadQuote>, path: Path<String>, pool: web::Data<crate::DbPool>) -> Result<HttpResponse, http::error::MyError> {
     let quote_id = path.into_inner();
 
     let validation = quote_form.validate();
@@ -148,28 +167,40 @@ pub async fn update(quote_form: Json<ApiPayloadQuote>, path: Path<String>) -> Re
     }
 
     let quote_repository = QuoteRepository;
-    let response_promise = quote_repository.get_quote(quote_id);
 
-    if response_promise.is_err() {
-        warn!("{:?}", response_promise.unwrap_err());
+    let quote_update = web::block(move || {
+        let mut conn = pool.get().expect("couldn't get db connection from pool");
 
-        return Err(http::error::MyError::NotFount)
+        let quote_promise = quote_repository.get_quote(quote_id, &mut conn);
+
+        if quote_promise.is_err() {
+            return Err(error::MyError::NotFount);
+        }
+
+        let mut db_quote = quote_promise.unwrap().clone();
+        db_quote.quote = quote_form.quote.to_string();
+        db_quote.author = quote_form.author.to_string();
+
+        let update_promise = quote_repository.update(
+            db_quote.clone(),
+            &mut conn
+        );
+
+        match update_promise {
+            Ok(_) => return Ok(update_promise.unwrap()),
+            Err(_) => return Err(http::error::MyError::BadClientData),
+        }        
+    })
+    .await;
+
+    match quote_update {
+        Ok(_) => return Ok(
+            HttpResponse::Ok().json(
+                quote_update.unwrap().unwrap()
+            )
+        ),
+        Err(_) => return Err(http::error::MyError::ServerUnavailable),
     }
-
-    let mut db_quote = response_promise.unwrap();
-
-    db_quote.quote = quote_form.quote.to_string();
-    db_quote.author = quote_form.author.to_string();
-
-    let update_promise = quote_repository.update(db_quote.clone());
-
-    if update_promise.is_err() {
-        warn!("{:?}", update_promise.unwrap_err());
-
-        return Err(http::error::MyError::NotFount)
-    }
-
-    Ok(HttpResponse::Ok().json(db_quote))
 }
 
 #[actix_web::test]

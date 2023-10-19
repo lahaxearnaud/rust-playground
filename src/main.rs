@@ -7,6 +7,7 @@ extern crate dotenv;
 
 mod db;
 
+use diesel::PgConnection;
 use dotenv::dotenv;
 use std::{env, collections::BTreeMap};
 
@@ -29,7 +30,6 @@ use utoipa::{
     Modify, OpenApi,
 };
 use utoipa_swagger_ui::SwaggerUi;
-
 
 async fn validator(
     req: ServiceRequest,
@@ -65,6 +65,7 @@ fn create_jwt() -> String {
     return claims.sign_with_key(&key).unwrap();
 }
 
+pub type DbPool = diesel::r2d2::Pool<diesel::r2d2::ConnectionManager<PgConnection>>;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -80,6 +81,11 @@ async fn main() -> std::io::Result<()> {
 
     log::info!("JWT: {}", create_jwt());
 
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let manager = diesel::r2d2::ConnectionManager::<PgConnection>::new(database_url);
+    let pool = diesel::r2d2::Pool::builder()
+        .build(manager)
+        .expect("database URL should be valid");
 
     struct SecurityAddon;
 
@@ -124,6 +130,7 @@ async fn main() -> std::io::Result<()> {
 
 
         App::new()
+            .app_data(web::Data::new(pool.clone()))
             // logs
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
@@ -151,8 +158,7 @@ async fn main() -> std::io::Result<()> {
     .bind((
         env::var("HTTP_LISTEN_IP")
             .unwrap_or(
-                "127.0.0.1".to_string()
-            ),
+                "127.0.0.1".to_string()),
         env::var("HTTP_LISTEN_PORT")
             .unwrap_or(
                 "8080".to_string()
