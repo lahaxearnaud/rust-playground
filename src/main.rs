@@ -15,10 +15,10 @@ use jwt::{VerifyWithKey, SignWithKey};
 use sha2::Sha256;
 
 use actix_web::{
-    App, HttpServer, Result, web,
+    App, HttpServer, Result, web::{self, Redirect},
     dev::ServiceRequest,
     Error,
-    middleware::{Logger, DefaultHeaders}, http::header::ContentType
+    middleware::{Logger, DefaultHeaders}, http::{header::ContentType, StatusCode}, Responder, HttpResponse
 };
 
 use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
@@ -29,6 +29,9 @@ use utoipa::{
     Modify, OpenApi,
 };
 use utoipa_swagger_ui::SwaggerUi;
+use actix_web_prom::PrometheusMetricsBuilder;
+use std::collections::HashMap;
+use gethostname::gethostname;
 
 
 async fn validator(
@@ -65,6 +68,11 @@ fn create_jwt() -> String {
     return claims.sign_with_key(&key).unwrap();
 }
 
+async fn health() -> impl Responder {
+    HttpResponse::Ok()
+        .content_type(ContentType::plaintext())
+        .body("Ok")
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -122,8 +130,32 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         let auth = HttpAuthentication::bearer(validator);
 
+        let mut labels = HashMap::new();
+        labels.insert(
+            "host".to_string(),
+            format!("{:?}", gethostname())
+        );
+        let prometheus = PrometheusMetricsBuilder::new(
+            env::var("PROMETHEUS_NAMESPACE")
+                .unwrap_or(
+                    "rustplayground".to_string()
+                ).as_ref()
+        )
+            .endpoint(
+                env::var("PROMETHEUS_METRICS_PATH")
+                    .unwrap_or(
+                        "/metrics".to_string()
+                    ).as_ref()
+            )
+            .const_labels(labels)
+            .build()
+            .unwrap();
+    
 
         App::new()
+            .wrap(prometheus.clone())
+            .service(web::resource("/health").to(health))
+
             // logs
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
@@ -144,6 +176,9 @@ async fn main() -> std::io::Result<()> {
 
             )
 
+            .service(
+                Redirect::new("/", "/swagger-ui/").using_status_code(StatusCode::MOVED_PERMANENTLY)
+            )
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", openapi.clone()),
             )

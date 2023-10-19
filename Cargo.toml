@@ -23,3 +23,5 @@ hmac = "0.12.1"
 sha2 = "0.10.8"
 utoipa = { version = "4", features = ["actix_extras"] }
 utoipa-swagger-ui = { version = "4", features = ["actix-web"] }
+actix-web-prom = "0.7.0"
+gethostname = "0.4.3"

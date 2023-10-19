@@ -31,3 +31,12 @@ Le jwt est affiché dans la console au start
 # Swagger
 
 http://127.0.0.1:8080/swagger-ui/
+
+# Metrics (Prometheus)
+
+http://127.0.0.1:8080/metrics
+
+
+# Health check
+
+http://127.0.0.1:8080/health
