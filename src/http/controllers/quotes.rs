@@ -4,7 +4,7 @@ use crate::db::entities::quote::{Quote, ApiPayloadQuote};
 use actix_web::http::StatusCode;
 use actix_web::http::header::ContentType;
 use validator::Validate;
-
+use crate::db::pool::DbPool;
 use actix_web::web::{Path, Json, self};
 use actix_web::HttpResponse;
 use actix_web::Responder;
@@ -24,7 +24,7 @@ use uuid::Uuid;
     )
 )]
 #[get("/quotes")]
-pub async fn list(pool: web::Data<crate::DbPool>) -> actix_web::Result<HttpResponse, http::error::MyError> {
+pub async fn list(pool: web::Data<DbPool>) -> actix_web::Result<HttpResponse, http::error::MyError> {
     let quote_repository = QuoteRepository;
 
     let quotes = web::block(move || {
@@ -54,7 +54,7 @@ pub async fn list(pool: web::Data<crate::DbPool>) -> actix_web::Result<HttpRespo
     )
 )]
 #[get("/quotes/{quote_id}")]
-pub async fn item(path: Path<String>, pool: web::Data<crate::DbPool>) -> Result<HttpResponse, http::error::MyError> {
+pub async fn item(path: Path<String>, pool: web::Data<DbPool>) -> Result<HttpResponse, http::error::MyError> {
     let quote_id = path.into_inner();
     let quote_repository = QuoteRepository;
 
@@ -81,7 +81,7 @@ pub async fn item(path: Path<String>, pool: web::Data<crate::DbPool>) -> Result<
     )
 )]
 #[delete("/quotes/{quote_id}")]
-pub async fn delete(path: Path<String>, pool: web::Data<crate::DbPool>) -> impl Responder {
+pub async fn delete(path: Path<String>, pool: web::Data<DbPool>) -> impl Responder {
     let quote_id = path.into_inner();
     let quote_repository = QuoteRepository;
 
@@ -108,7 +108,7 @@ pub async fn delete(path: Path<String>, pool: web::Data<crate::DbPool>) -> impl 
     )
 )]
 #[post("/quotes")]
-pub async fn add(quote_form: Json<ApiPayloadQuote>, pool: web::Data<crate::DbPool>) -> Result<HttpResponse, http::error::MyError> {
+pub async fn add(quote_form: Json<ApiPayloadQuote>, pool: web::Data<DbPool>) -> Result<HttpResponse, http::error::MyError> {
     let quote_repository = QuoteRepository;
 
     let validation = quote_form.validate();
@@ -155,7 +155,7 @@ pub async fn add(quote_form: Json<ApiPayloadQuote>, pool: web::Data<crate::DbPoo
     )
 )]
 #[put("/quotes/{quote_id}")]
-pub async fn update(quote_form: Json<ApiPayloadQuote>, path: Path<String>, pool: web::Data<crate::DbPool>) -> Result<HttpResponse, http::error::MyError> {
+pub async fn update(quote_form: Json<ApiPayloadQuote>, path: Path<String>, pool: web::Data<crate::db::pool::DbPool>) -> Result<HttpResponse, http::error::MyError> {
     let quote_id = path.into_inner();
 
     let validation = quote_form.validate();
@@ -210,7 +210,13 @@ async fn test_get_list() {
     use actix_web::App;
 
     dotenv().ok();
-    let app = test::init_service(App::new().service(http::controllers::quotes::list)).await;
+    let pool = crate::db::pool::build_db_pool();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(pool.clone()))
+            .service(http::controllers::quotes::list)
+    ).await;
     let req = test::TestRequest::get().uri("/quotes")
         .insert_header(ContentType::json())
         .to_request();
@@ -230,7 +236,13 @@ async fn test_get_item() {
     use actix_web::App;
 
     dotenv().ok();
-    let app = test::init_service(App::new().service(http::controllers::quotes::item)).await;
+    let pool = crate::db::pool::build_db_pool();
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(pool.clone()))
+            .service(http::controllers::quotes::item)
+    ).await;
     let req = test::TestRequest::get().uri("/quotes/072f58a7-4150-431e-3729-60aea434088e")
         .insert_header(ContentType::json())
         .to_request();
@@ -251,9 +263,12 @@ async fn test_post() {
 
     dotenv().ok();
 
+    let pool = crate::db::pool::build_db_pool();
+
     let app = test::init_service(
         App::new()
-        .service(http::controllers::quotes::add)
+            .app_data(web::Data::new(pool.clone()))
+            .service(http::controllers::quotes::add)
     ).await;
     let req = test::TestRequest::post().uri("/quotes")
         .insert_header(ContentType::json())
@@ -277,9 +292,12 @@ async fn test_put() {
 
     dotenv().ok();
 
+    let pool = crate::db::pool::build_db_pool();
+
     let app = test::init_service(
         App::new()
-        .service(http::controllers::quotes::update)
+            .app_data(web::Data::new(pool.clone()))
+            .service(http::controllers::quotes::update)
     ).await;
     let req = test::TestRequest::put().uri("/quotes/172f58a7-3729-431e-aa80-9189c808623c")
         .insert_header(ContentType::json())

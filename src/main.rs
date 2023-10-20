@@ -7,7 +7,7 @@ extern crate dotenv;
 
 mod db;
 
-use diesel::PgConnection;
+use crate::db::pool::build_db_pool;
 use dotenv::dotenv;
 use std::{env, collections::BTreeMap};
 
@@ -16,6 +16,7 @@ use jwt::{VerifyWithKey, SignWithKey};
 use sha2::Sha256;
 
 use actix_web::{
+    get,
     App, HttpServer, Result, web::{self, Redirect},
     dev::ServiceRequest,
     Error,
@@ -68,8 +69,7 @@ fn create_jwt() -> String {
     return claims.sign_with_key(&key).unwrap();
 }
 
-pub type DbPool = diesel::r2d2::Pool<diesel::r2d2::ConnectionManager<PgConnection>>;
-
+#[get("/health")]
 async fn health() -> impl Responder {
     HttpResponse::Ok()
         .status(StatusCode::OK)
@@ -77,6 +77,7 @@ async fn health() -> impl Responder {
         .body("Ok")
 }
 
+#[get("/health")]
 async fn health_json() -> impl Responder {
     HttpResponse::Ok()
         .status(StatusCode::OK)
@@ -98,11 +99,7 @@ async fn main() -> std::io::Result<()> {
 
     log::info!("JWT: {}", create_jwt());
 
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let manager = diesel::r2d2::ConnectionManager::<PgConnection>::new(database_url);
-    let pool = diesel::r2d2::Pool::builder()
-        .build(manager)
-        .expect("database URL should be valid");
+    let pool = build_db_pool();
 
     struct SecurityAddon;
 
@@ -170,7 +167,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(pool.clone()))
             .wrap(prometheus.clone())
-            .service(web::resource("/health").to(health))
+            .service(health)
 
             // logs
             .wrap(Logger::default())
@@ -189,7 +186,7 @@ async fn main() -> std::io::Result<()> {
                         .service(http::controllers::quotes::delete)
                         .service(http::controllers::quotes::add)
                         .service(http::controllers::quotes::update)
-                        .service(web::resource("/health").to(health_json))
+                        .service(health_json)
 
             )
 
@@ -251,7 +248,7 @@ async fn test_index_without_jwt() {
     let app = test::init_service(
         App::new()
             .wrap(auth)
-            .service(http::controllers::quotes::list)
+            .service(health_json)
     ).await;
     let req = test::TestRequest::get().uri("/api/health")
         .insert_header(ContentType::json())
@@ -270,12 +267,15 @@ async fn test_index_with_jwt() {
     let app = test::init_service(
         App::new()
             .wrap(auth)
-            .service(http::controllers::quotes::list)
+            .service(health_json)
     ).await;
-    let req = test::TestRequest::get().uri("/api/health")
+    let req = test::TestRequest::get().uri("/health")
         .insert_header(ContentType::json())
         .insert_header(("Authorization", format!("Bearer {}" ,create_jwt())))
         .to_request();
     let resp = test::call_service(&app, req).await;
-    assert!(resp.status().is_success());
+    let status = resp.status();
+    let body = test::read_body(resp).await;
+    println!("Out: {:?} Status: {}", std::str::from_utf8(&body), status.as_str());
+    assert!(status.is_success());
 }
