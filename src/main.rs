@@ -1,14 +1,16 @@
 mod http;
+mod db;
+mod config;
 
 #[macro_use]
 extern crate diesel;
 
 extern crate dotenv;
 
-mod db;
-
+use crate::config::env::load_config_from_env;
 use crate::db::pool::build_db_pool;
 use dotenv::dotenv;
+use log::info;
 use std::{env, collections::BTreeMap};
 
 use hmac::{Hmac, Mac};
@@ -91,15 +93,11 @@ async fn main() -> std::io::Result<()> {
 
     simple_logger::init_with_env().unwrap();
 
-    let env_jwt_secret = env::var("JWT_SECRET");
-    match env_jwt_secret {
-        Ok(_) => (),
-        Err(_) => panic!("JWT_SECRET env var must be defined"),
-    }
+    let config = load_config_from_env();
 
     log::info!("JWT: {}", create_jwt());
-
-    let pool = build_db_pool();
+    
+    let pool = build_db_pool(config.database_url.to_string());
 
     struct SecurityAddon;
 
@@ -139,6 +137,8 @@ async fn main() -> std::io::Result<()> {
 
     let openapi = ApiDoc::openapi();
 
+    info!("Start Server on port {}", config.http_listen_port);
+
     HttpServer::new(move || {
         let auth = HttpAuthentication::bearer(validator);
 
@@ -147,23 +147,12 @@ async fn main() -> std::io::Result<()> {
             "host".to_string(),
             format!("{:?}", gethostname())
         );
-        let prometheus = PrometheusMetricsBuilder::new(
-            env::var("PROMETHEUS_NAMESPACE")
-                .unwrap_or(
-                    "rustplayground".to_string()
-                ).as_ref()
-        )
-            .endpoint(
-                env::var("PROMETHEUS_METRICS_PATH")
-                    .unwrap_or(
-                        "/metrics".to_string()
-                    ).as_ref()
-            )
+        let prometheus = PrometheusMetricsBuilder::new(&config.prometheus_namespace)
+            .endpoint(&config.prometheus_metrics_path)
             .const_labels(labels)
             .build()
             .unwrap();
     
-
         App::new()
             .app_data(web::Data::new(pool.clone()))
             .wrap(prometheus.clone())
@@ -198,40 +187,17 @@ async fn main() -> std::io::Result<()> {
             )
     })
     .bind((
-        env::var("HTTP_LISTEN_IP")
-            .unwrap_or(
-                "127.0.0.1".to_string()),
-        env::var("HTTP_LISTEN_PORT")
-            .unwrap_or(
-                "8080".to_string()
-            )
-            .to_string()
-            .parse::<u16>()
-            .unwrap()
+        config.http_listen_ip.as_str(),
+        config.http_listen_port.to_string().parse::<u16>().unwrap()
     ))?
     .workers(
-        env::var("HTTP_SERVER_NUM_WORKERS")
-                .unwrap_or(
-                    "5".to_string()
-                )
-                .to_string()
-                .parse::<usize>()
-                .unwrap()
+        config.http_server_num_worker
     )
     .max_connections(
-        env::var("HTTP_SERVER_MAX_CONNEXION")
-                .unwrap_or(
-                    "5".to_string()
-                )
-                .to_string()
-                .parse::<usize>()
-                .unwrap()
+        config.http_server_max_connexion
     )
     .server_hostname(
-        env::var("HTTP_SERVER_HOSTNAME")
-                .unwrap_or(
-                    "127.0.0.1".to_string()
-                )
+        config.http_server_hostname
     )
     .run()
     .await

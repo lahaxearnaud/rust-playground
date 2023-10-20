@@ -1,5 +1,11 @@
 # rust-playground
 
+## Quickstart
+
+```bash
+make boot
+```
+
 ## Deps
 
 ```bash
@@ -7,21 +13,17 @@ sudo apt-get install libpq-dev
 ```
 
 ```bash
-cargo install diesel_cli --no-default-features --features postgres
+make diesel-setup
 ```
 
 # Dev postgres
 
 ```bash
-docker run -d --rm --name postgres \
- -e POSTGRES_PASSWORD=postgres \
- -e POSTGRES_USER=postgres \
- -e POSTGRES_DB=postgres \
- -p 5432:5432 postgres:16
+make pg-start
  ```
 
  ```bash
-diesel setup
+make setup-db
 ```
 
 # Auth
@@ -43,10 +45,6 @@ http://127.0.0.1:8080/health
 
 # build / publish docker image
 
-@todo à mettre dans la CI
-
 ```bash
-cargo build -r --all-features
-docker build . -t lahaxearnaud/rust-playground
-docker push lahaxearnaud/rust-playground
+make publish-docker
 ```

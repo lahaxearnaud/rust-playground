@@ -210,7 +210,9 @@ async fn test_get_list() {
     use actix_web::App;
 
     dotenv().ok();
-    let pool = crate::db::pool::build_db_pool();
+    let pool = crate::db::pool::build_db_pool(
+        std::env::var("DATABASE_URL").expect("No DATABASE_URL configured")
+    );
 
     let app = test::init_service(
         App::new()
@@ -236,7 +238,9 @@ async fn test_get_item() {
     use actix_web::App;
 
     dotenv().ok();
-    let pool = crate::db::pool::build_db_pool();
+    let pool = crate::db::pool::build_db_pool(
+        std::env::var("DATABASE_URL").expect("No DATABASE_URL configured")
+    );
 
     let app = test::init_service(
         App::new()
@@ -263,7 +267,9 @@ async fn test_post() {
 
     dotenv().ok();
 
-    let pool = crate::db::pool::build_db_pool();
+    let pool = crate::db::pool::build_db_pool(
+        std::env::var("DATABASE_URL").expect("No DATABASE_URL configured")
+    );
 
     let app = test::init_service(
         App::new()
@@ -292,7 +298,9 @@ async fn test_put() {
 
     dotenv().ok();
 
-    let pool = crate::db::pool::build_db_pool();
+    let pool = crate::db::pool::build_db_pool(
+        std::env::var("DATABASE_URL").expect("No DATABASE_URL configured")
+    );
 
     let app = test::init_service(
         App::new()
