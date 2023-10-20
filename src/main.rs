@@ -95,8 +95,9 @@ async fn main() -> std::io::Result<()> {
 
     let config = load_config_from_env();
 
-    log::info!("JWT: {}", create_jwt());
-    
+    info!("Config: {}", config.to_string());
+    info!("JWT: {}", create_jwt());
+
     let pool = build_db_pool(config.database_url.to_string());
 
     struct SecurityAddon;
@@ -152,7 +153,7 @@ async fn main() -> std::io::Result<()> {
             .const_labels(labels)
             .build()
             .unwrap();
-    
+
         App::new()
             .app_data(web::Data::new(pool.clone()))
             .wrap(prometheus.clone())

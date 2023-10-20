@@ -17,6 +17,23 @@ pub struct Config {
     pub prometheus_namespace: String,
 }
 
+impl Config {
+    pub fn to_string(&self) -> String {
+        // We don't want to disclose the secret
+        format!(
+            "log_level={}, http_server_max_connexion={}, http_server_num_worker={}, http_server_hostname={}, http_listen_ip={}, http_listen_port={}, prometheus_metrics_path={}, prometheus_namespace={}",
+            &self.log_level,
+            &self.http_server_max_connexion,
+            &self.http_server_num_worker,
+            &self.http_server_hostname,
+            &self.http_listen_ip,
+            &self.http_listen_port,
+            &self.prometheus_metrics_path,
+            &self.prometheus_namespace,
+        )
+    }
+}
+
 
 fn env_or_panic(name: String) -> String {
     let message = format!(
