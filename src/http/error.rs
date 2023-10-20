@@ -12,6 +12,9 @@ pub enum MyError {
     #[display(fmt = "Not found")]
     NotFount,
 
+    #[display(fmt = "Server Unavailable")]
+    ServerUnavailable,
+
     #[display(fmt = "Unauthorized")]
     Unauthorized,
 }
@@ -28,6 +31,7 @@ impl error::ResponseError for MyError {
             MyError::BadClientData => StatusCode::BAD_REQUEST,
             MyError::NotFount => StatusCode::NOT_FOUND,
             MyError::Unauthorized => StatusCode::UNAUTHORIZED,
+            MyError::ServerUnavailable => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
 }

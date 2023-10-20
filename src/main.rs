@@ -7,6 +7,7 @@ extern crate dotenv;
 
 mod db;
 
+use crate::db::pool::build_db_pool;
 use dotenv::dotenv;
 use std::{env, collections::BTreeMap};
 
@@ -15,6 +16,7 @@ use jwt::{VerifyWithKey, SignWithKey};
 use sha2::Sha256;
 
 use actix_web::{
+    get,
     App, HttpServer, Result, web::{self, Redirect},
     dev::ServiceRequest,
     Error,
@@ -32,7 +34,6 @@ use utoipa_swagger_ui::SwaggerUi;
 use actix_web_prom::PrometheusMetricsBuilder;
 use std::collections::HashMap;
 use gethostname::gethostname;
-
 
 async fn validator(
     req: ServiceRequest,
@@ -68,10 +69,20 @@ fn create_jwt() -> String {
     return claims.sign_with_key(&key).unwrap();
 }
 
+#[get("/health")]
 async fn health() -> impl Responder {
     HttpResponse::Ok()
+        .status(StatusCode::OK)
         .content_type(ContentType::plaintext())
         .body("Ok")
+}
+
+#[get("/health")]
+async fn health_json() -> impl Responder {
+    HttpResponse::Ok()
+        .status(StatusCode::OK)
+        .content_type(ContentType::json())
+        .json("Ok")
 }
 
 #[actix_web::main]
@@ -88,6 +99,7 @@ async fn main() -> std::io::Result<()> {
 
     log::info!("JWT: {}", create_jwt());
 
+    let pool = build_db_pool();
 
     struct SecurityAddon;
 
@@ -153,8 +165,9 @@ async fn main() -> std::io::Result<()> {
     
 
         App::new()
+            .app_data(web::Data::new(pool.clone()))
             .wrap(prometheus.clone())
-            .service(web::resource("/health").to(health))
+            .service(health)
 
             // logs
             .wrap(Logger::default())
@@ -173,6 +186,7 @@ async fn main() -> std::io::Result<()> {
                         .service(http::controllers::quotes::delete)
                         .service(http::controllers::quotes::add)
                         .service(http::controllers::quotes::update)
+                        .service(health_json)
 
             )
 
@@ -186,8 +200,7 @@ async fn main() -> std::io::Result<()> {
     .bind((
         env::var("HTTP_LISTEN_IP")
             .unwrap_or(
-                "127.0.0.1".to_string()
-            ),
+                "127.0.0.1".to_string()),
         env::var("HTTP_LISTEN_PORT")
             .unwrap_or(
                 "8080".to_string()
@@ -235,9 +248,9 @@ async fn test_index_without_jwt() {
     let app = test::init_service(
         App::new()
             .wrap(auth)
-            .service(http::controllers::quotes::list)
+            .service(health_json)
     ).await;
-    let req = test::TestRequest::get().uri("/quotes")
+    let req = test::TestRequest::get().uri("/api/health")
         .insert_header(ContentType::json())
         .to_request();
     let resp = test::call_service(&app, req).await;
@@ -254,17 +267,15 @@ async fn test_index_with_jwt() {
     let app = test::init_service(
         App::new()
             .wrap(auth)
-            .service(http::controllers::quotes::list)
+            .service(health_json)
     ).await;
-    let req = test::TestRequest::get().uri("/quotes")
+    let req = test::TestRequest::get().uri("/health")
         .insert_header(ContentType::json())
         .insert_header(("Authorization", format!("Bearer {}" ,create_jwt())))
         .to_request();
     let resp = test::call_service(&app, req).await;
-    let success = resp.status().is_success();
-
+    let status = resp.status();
     let body = test::read_body(resp).await;
-    println!("Out: {:?}", std::str::from_utf8(&body));
-
-    assert!(success);
+    println!("Out: {:?} Status: {}", std::str::from_utf8(&body), status.as_str());
+    assert!(status.is_success());
 }

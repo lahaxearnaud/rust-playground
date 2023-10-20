@@ -1,47 +1,41 @@
 use diesel::prelude::*;
 use crate::db::entities::quote::Quote;
 use crate::db::schema::quotes::dsl::*;
-use crate::db::connexion::establish_connection;
 
 pub struct QuoteRepository;
 
 impl QuoteRepository {
-    pub fn get_quotes(&self, limit: Option<i64>) -> QueryResult<Vec<Quote>> {
-        let mut connection = establish_connection();
-
+    pub fn get_quotes(&self, limit: Option<i64>, connection: &mut PgConnection) -> QueryResult<Vec<Quote>> {
         quotes
             .limit(limit.unwrap_or(10))
-            .load(&mut connection)
+            .load( connection)
     }
 
-    pub fn get_quote(&self, other_id: String) -> QueryResult<Quote> {
-        let mut connection = establish_connection();
+    pub fn get_quote(&self, other_id: String, connection: &mut PgConnection) -> QueryResult<Quote> {
 
         quotes
             .find(other_id)
-            .first(&mut connection)
+            .first(connection)
     }
 
-    pub fn remove(&self, other_id: String) -> QueryResult<usize> {
-        let mut connection = establish_connection();
+    pub fn remove(&self, other_id: String, connection: &mut PgConnection) -> QueryResult<usize> {
 
         return diesel::delete(
             quotes
             .find(other_id)
-        ).execute(&mut connection);
+        ).execute(connection);
     }
 
-    pub fn insert(&self, quote_new: Quote) -> QueryResult<usize> {
-        let mut connection = establish_connection();
+    pub fn insert(&self, quote_new: Quote, connection: &mut PgConnection) -> QueryResult<usize> {
+
         return diesel::insert_into(quotes)
             .values(&quote_new)
-            .execute(&mut connection);
+            .execute(connection);
     }
 
-    pub fn update(&self, quote_new: Quote) -> QueryResult<usize> {
-        let mut connection = establish_connection();
+    pub fn update(&self, quote_new: Quote, connection: &mut PgConnection) -> QueryResult<usize> {
         return diesel::update(quotes)
             .set(&quote_new)
-            .execute(&mut connection);
+            .execute(connection);
     }
 }
