@@ -40,3 +40,13 @@ http://127.0.0.1:8080/metrics
 # Health check
 
 http://127.0.0.1:8080/health
+
+# build / publish docker image
+
+@todo à mettre dans la CI
+
+```bash
+cargo build -r --all-features
+docker build . -t lahaxearnaud/rust-playground
+docker push lahaxearnaud/rust-playground
+```
