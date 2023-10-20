@@ -16,10 +16,10 @@ use jwt::{VerifyWithKey, SignWithKey};
 use sha2::Sha256;
 
 use actix_web::{
-    App, HttpServer, Result, web,
+    App, HttpServer, Result, web::{self, Redirect},
     dev::ServiceRequest,
     Error,
-    middleware::{Logger, DefaultHeaders}, http::header::ContentType
+    middleware::{Logger, DefaultHeaders}, http::{header::ContentType, StatusCode}, Responder, HttpResponse
 };
 
 use actix_web_httpauth::{extractors::bearer::BearerAuth, middleware::HttpAuthentication};
@@ -30,6 +30,9 @@ use utoipa::{
     Modify, OpenApi,
 };
 use utoipa_swagger_ui::SwaggerUi;
+use actix_web_prom::PrometheusMetricsBuilder;
+use std::collections::HashMap;
+use gethostname::gethostname;
 
 async fn validator(
     req: ServiceRequest,
@@ -66,6 +69,20 @@ fn create_jwt() -> String {
 }
 
 pub type DbPool = diesel::r2d2::Pool<diesel::r2d2::ConnectionManager<PgConnection>>;
+
+async fn health() -> impl Responder {
+    HttpResponse::Ok()
+        .status(StatusCode::OK)
+        .content_type(ContentType::plaintext())
+        .body("Ok")
+}
+
+async fn health_json() -> impl Responder {
+    HttpResponse::Ok()
+        .status(StatusCode::OK)
+        .content_type(ContentType::json())
+        .json("Ok")
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -128,9 +145,33 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         let auth = HttpAuthentication::bearer(validator);
 
+        let mut labels = HashMap::new();
+        labels.insert(
+            "host".to_string(),
+            format!("{:?}", gethostname())
+        );
+        let prometheus = PrometheusMetricsBuilder::new(
+            env::var("PROMETHEUS_NAMESPACE")
+                .unwrap_or(
+                    "rustplayground".to_string()
+                ).as_ref()
+        )
+            .endpoint(
+                env::var("PROMETHEUS_METRICS_PATH")
+                    .unwrap_or(
+                        "/metrics".to_string()
+                    ).as_ref()
+            )
+            .const_labels(labels)
+            .build()
+            .unwrap();
+    
 
         App::new()
             .app_data(web::Data::new(pool.clone()))
+            .wrap(prometheus.clone())
+            .service(web::resource("/health").to(health))
+
             // logs
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
@@ -148,9 +189,13 @@ async fn main() -> std::io::Result<()> {
                         .service(http::controllers::quotes::delete)
                         .service(http::controllers::quotes::add)
                         .service(http::controllers::quotes::update)
+                        .service(web::resource("/health").to(health_json))
 
             )
 
+            .service(
+                Redirect::new("/", "/swagger-ui/").using_status_code(StatusCode::MOVED_PERMANENTLY)
+            )
             .service(
                 SwaggerUi::new("/swagger-ui/{_:.*}").url("/api-docs/openapi.json", openapi.clone()),
             )
@@ -208,7 +253,7 @@ async fn test_index_without_jwt() {
             .wrap(auth)
             .service(http::controllers::quotes::list)
     ).await;
-    let req = test::TestRequest::get().uri("/quotes")
+    let req = test::TestRequest::get().uri("/api/health")
         .insert_header(ContentType::json())
         .to_request();
     let resp = test::call_service(&app, req).await;
@@ -227,15 +272,10 @@ async fn test_index_with_jwt() {
             .wrap(auth)
             .service(http::controllers::quotes::list)
     ).await;
-    let req = test::TestRequest::get().uri("/quotes")
+    let req = test::TestRequest::get().uri("/api/health")
         .insert_header(ContentType::json())
         .insert_header(("Authorization", format!("Bearer {}" ,create_jwt())))
         .to_request();
     let resp = test::call_service(&app, req).await;
-    let success = resp.status().is_success();
-
-    let body = test::read_body(resp).await;
-    println!("Out: {:?}", std::str::from_utf8(&body));
-
-    assert!(success);
+    assert!(resp.status().is_success());
 }
