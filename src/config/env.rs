@@ -25,7 +25,7 @@ fn env_or_panic(name: String) -> String {
     );
 
     env::var(name)
-        .expect(message.as_str())
+        .unwrap_or_else(|_| { panic!("{}", message) })
 }
 
 fn env_or_string(name: String, default : String) -> String {
@@ -44,7 +44,7 @@ fn env_or_int(name: String, default : String) -> usize {
 
 pub fn load_config_from_env () -> Config {
 
-    return Config {
+    Config {
         log_level: env_or_string("RUST_LOG".to_string(), "DEBUG".to_string()),
         database_url: env_or_panic("DATABASE_URL".to_string()),
         jwt_secret: env_or_panic("JWT_SECRET".to_string()),

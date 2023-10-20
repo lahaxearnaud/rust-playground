@@ -20,22 +20,22 @@ impl QuoteRepository {
 
     pub fn remove(&self, other_id: String, connection: &mut PgConnection) -> QueryResult<usize> {
 
-        return diesel::delete(
+        diesel::delete(
             quotes
             .find(other_id)
-        ).execute(connection);
+        ).execute(connection)
     }
 
     pub fn insert(&self, quote_new: Quote, connection: &mut PgConnection) -> QueryResult<usize> {
 
-        return diesel::insert_into(quotes)
+        diesel::insert_into(quotes)
             .values(&quote_new)
-            .execute(connection);
+            .execute(connection)
     }
 
     pub fn update(&self, quote_new: Quote, connection: &mut PgConnection) -> QueryResult<usize> {
-        return diesel::update(quotes)
+        diesel::update(quotes)
             .set(&quote_new)
-            .execute(connection);
+            .execute(connection)
     }
 }

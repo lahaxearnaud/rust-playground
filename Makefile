@@ -34,3 +34,6 @@ diesel-setup: ## Setup DB
 	cargo install diesel_cli --no-default-features --features postgres
 
 install: diesel-setup db-setup ## Boot all dev tools
+
+lint: ## Lint code
+	cargo clippy --fix

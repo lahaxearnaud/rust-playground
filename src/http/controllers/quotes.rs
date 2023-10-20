@@ -30,16 +30,16 @@ pub async fn list(pool: web::Data<DbPool>) -> actix_web::Result<HttpResponse, ht
     let quotes = web::block(move || {
         let mut conn = pool.get().expect("couldn't get db connection from pool");
 
-        return quote_repository.get_quotes(
+        quote_repository.get_quotes(
             Some(1000),
             &mut conn
-        );
+        )
     })
     .await;
 
     match quotes {
-        Ok(_) => return Ok(HttpResponse::Ok().json(quotes.unwrap().unwrap())),
-        Err(_) => return Err(http::error::MyError::NotFount),
+        Ok(_) => Ok(HttpResponse::Ok().json(quotes.unwrap().unwrap())),
+        Err(_) => Err(http::error::MyError::NotFount),
     }
 }
 
@@ -61,13 +61,13 @@ pub async fn item(path: Path<String>, pool: web::Data<DbPool>) -> Result<HttpRes
     let quote = web::block(move || {
         let mut conn = pool.get().expect("couldn't get db connection from pool");
 
-        return quote_repository.get_quote(quote_id, &mut conn);
+        quote_repository.get_quote(quote_id, &mut conn)
     })
     .await;
 
     match quote {
-        Ok(_) => return Ok(HttpResponse::Ok().json(quote.unwrap().unwrap())),
-        Err(_) => return Err(http::error::MyError::NotFount),
+        Ok(_) => Ok(HttpResponse::Ok().json(quote.unwrap().unwrap())),
+        Err(_) => Err(http::error::MyError::NotFount),
     }
 }
 
@@ -88,7 +88,7 @@ pub async fn delete(path: Path<String>, pool: web::Data<DbPool>) -> impl Respond
     let _ = web::block(move || {
         let mut conn = pool.get().expect("couldn't get db connection from pool");
 
-        return quote_repository.remove(quote_id, &mut conn);
+        quote_repository.remove(quote_id, &mut conn)
     })
     .await;
 
@@ -130,14 +130,14 @@ pub async fn add(quote_form: Json<ApiPayloadQuote>, pool: web::Data<DbPool>) -> 
     let quote_insert = web::block(move || {
         let mut conn = pool.get().expect("couldn't get db connection from pool");
 
-        return quote_repository
-            .insert(new_quote.clone(), &mut conn);
+        quote_repository
+            .insert(new_quote.clone(), &mut conn)
     })
     .await;
 
     match quote_insert {
-        Ok(_) => return Ok(HttpResponse::Ok().json(result_quote)),
-        Err(_) => return Err(http::error::MyError::ServerUnavailable),
+        Ok(_) => Ok(HttpResponse::Ok().json(result_quote)),
+        Err(_) => Err(http::error::MyError::ServerUnavailable),
     }
 }
 
@@ -187,19 +187,19 @@ pub async fn update(quote_form: Json<ApiPayloadQuote>, path: Path<String>, pool:
         );
 
         match update_promise {
-            Ok(_) => return Ok(update_promise.unwrap()),
-            Err(_) => return Err(http::error::MyError::BadClientData),
+            Ok(_) => Ok(update_promise.unwrap()),
+            Err(_) => Err(http::error::MyError::BadClientData),
         }        
     })
     .await;
 
     match quote_update {
-        Ok(_) => return Ok(
+        Ok(_) => Ok(
             HttpResponse::Ok().json(
                 quote_update.unwrap().unwrap()
             )
         ),
-        Err(_) => return Err(http::error::MyError::ServerUnavailable),
+        Err(_) => Err(http::error::MyError::ServerUnavailable),
     }
 }
 

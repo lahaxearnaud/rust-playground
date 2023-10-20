@@ -68,7 +68,7 @@ fn create_jwt() -> String {
     let mut claims = BTreeMap::new();
     claims.insert("audiance", "127.0.0.1");
 
-    return claims.sign_with_key(&key).unwrap();
+    claims.sign_with_key(&key).unwrap()
 }
 
 #[get("/health")]
