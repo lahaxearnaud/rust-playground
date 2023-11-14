@@ -13,7 +13,7 @@ log = "0.4.20"
 derive_more = "0.99.17"
 simple_logger = "4.2.0"
 rand = "0.8.5"
-diesel = { version = "2.1.3", features = ["postgres", "r2d2"] }
+diesel = { version = "2.1.4", features = ["postgres", "r2d2"] }
 dotenv = "0.15.0"
 uuid = { version = "1.4.1", features = ["serde", "v4"] }
 validator = { version = "0.16.1", features = ["derive"] }
